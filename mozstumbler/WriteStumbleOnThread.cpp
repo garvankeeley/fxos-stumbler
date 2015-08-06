@@ -4,7 +4,7 @@
 #include "nsGZFileWriter.h"
 #include "nsIFileStreams.h"
 #include "nsIInputStream.h"
-#include "../StumblerLogging.h"
+#include "StumblerLogging.h"
 
 #define MAXFILESIZE_KB 15 * 1024
 
@@ -83,7 +83,7 @@ WriteStumbleOnThread::WriteJSON(Partition aPart)
    */
 
   // Need to add "]}" after the last item
-  if (aPart == End) {
+  if (aPart == Partition::End) {
     gzWriter->Write("]}");
     rv = gzWriter->Finish();
     if (NS_WARN_IF(NS_FAILED(rv))) {
@@ -96,9 +96,9 @@ WriteStumbleOnThread::WriteJSON(Partition aPart)
   }
 
   // Need to add "{items:[" before the first item
-  if (aPart == Begining) {
+  if (aPart == Partition::Begining) {
     gzWriter->Write("{\"items\":[{");
-  } else if (aPart == Middle) {
+  } else if (aPart == Partition::Middle) {
     gzWriter->Write(",{");
   }
   gzWriter->Write(mDesc.get());
@@ -117,7 +117,7 @@ WriteStumbleOnThread::WriteJSON(Partition aPart)
     return;
   }
   if (fileSize >= MAXFILESIZE_KB) {
-    WriteJSON(End);
+    WriteJSON(Partition::End);
     return;
   }
 }
@@ -143,11 +143,11 @@ WriteStumbleOnThread::GetWritePosition()
   }
 
   if (fileSize == 0) {
-    return Begining;
+    return Partition::Begining;
   } else if (fileSize >= MAXFILESIZE_KB) {
-    return End;
+    return Partition::End;
   } else {
-    return Middle;
+    return Partition::Middle;
   }
 }
 
@@ -163,8 +163,12 @@ WriteStumbleOnThread::Run()
 
   STUMBLER_DBG("In WriteStumbleOnThread\n");
 
-  if (IsFileReadyForUpload()) {
-    Upload();
+  UploadFileStatus status = GetUploadFileStatus();
+
+  if (UploadFileStatus::NoFile != status) {
+    if (UploadFileStatus::ExistsAndReadyToUpload == status) {
+     Upload();
+    }
   }
   else {
     Partition partition = GetWritePosition();
@@ -177,6 +181,30 @@ WriteStumbleOnThread::Run()
 
   sIsAlreadyRunning = false;
   return NS_OK;
+}
+
+
+/*
+ If the upload file exists, then check if it is one day old.
+ • if it is a day old -> ExistsAndReadyToUpload
+ • if it is less than the current day old -> Exists
+ • otherwise -> NoFile
+ 
+ The Exists case means that the upload and the stumbling is rate limited
+ per-day to the size of the one file.
+ */
+UploadFileStatus
+WriteStumbleOnThread::GetUploadFileStatus()
+{
+  // TODO
+  // Alphen can you help fill this in?
+  if (file_exists(kOutputFileNameCompleted)) {
+    if (file_is_at_least_one_day_old(kOutputFileNameCompleted)) {
+     return UploadFileStatus::ExistsAndReadyToUpload;
+    }
+    return UploadFileStatus::Exists;
+  }
+  return UploadFileStatus::NoFile;
 }
 
 void

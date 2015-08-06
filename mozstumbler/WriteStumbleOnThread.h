@@ -15,24 +15,29 @@ public:
   static void UploadEnded(bool deleteUploadFile);
 
 private:
+
+  enum class Partition {
+    Begining,
+    Middle,
+    End,
+    Unknown
+  };
+
+  enum class UploadFileStatus {
+    NoFile, Exists, ExistsAndReadyToUpload
+  }
+
   ~WriteStumbleOnThread() {}
-//  nsresult MoveOldestFileAsUploadFile();
+
   Partition GetWritePosition();
-  void WriteJSON(Partition aPart, int aFileNum);
-  bool IsFileReadyForUpload();
+  UploadFileStatus GetUploadFileStatus();
+  void WriteJSON(Partition aPart);
 
   nsCString mDesc;
   // Don't write while uploading is happening
   std::atomic_flag sIsUploading;
   // Only run one instance of this
   std::atomic_flag sIsAlreadyRunning;
-
-  enum Partition {
-    Begining,
-    Middle,
-    End,
-    Unknown
-  };
 };
 
 #endif
