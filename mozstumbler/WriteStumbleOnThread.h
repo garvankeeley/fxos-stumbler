@@ -1,12 +1,12 @@
-#ifndef WRITESTUMBLE_H
-#define WRITESTUMBLE_H
+#ifndef WriteStumbleOnThread_H
+#define WriteStumbleOnThread_H
 
 #include <atomic>
 
-class WriteStumble : public nsRunnable
+class WriteStumbleOnThread : public nsRunnable
 {
 public:
-  explicit WriteStumble(const nsCString& aDesc)
+  explicit WriteStumbleOnThread(const nsCString& aDesc)
   : mDesc(aDesc)
   {}
 
@@ -15,7 +15,7 @@ public:
   static void UploadEnded(bool deleteUploadFile);
 
 private:
-  ~WriteStumble() {}
+  ~WriteStumbleOnThread() {}
 //  nsresult MoveOldestFileAsUploadFile();
   Partition GetWritePosition();
   void WriteJSON(Partition aPart, int aFileNum);

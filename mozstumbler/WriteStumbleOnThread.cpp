@@ -1,4 +1,4 @@
-#include "WriteStumble.cpp"
+#include "WriteStumbleOnThread.cpp"
 #include "nsPrintfCString.h"
 #include "nsDumpUtils.h"
 #include "nsGZFileWriter.h"
@@ -8,14 +8,14 @@
 
 #define MAXFILESIZE_KB 15 * 1024
 
-std::atomic_bool WriteStumble::sIsUploading(false);
+std::atomic_bool WriteStumbleOnThread::sIsUploading(false);
 
 NS_NAMED_LITERAL_CSTRING(kOutputFileNameInProgress, "stumbles.json.gz");
 NS_NAMED_LITERAL_CSTRING(kOutputFileNameCompleted, "stumbles.done.json.gz");
 NS_NAMED_LITERAL_CSTRING(kOutputDirName, "mozstumbler");
 
 void
-WriteStumble::UploadEnded(bool deleteUploadFile)
+WriteStumbleOnThread::UploadEnded(bool deleteUploadFile)
 {
   if (!deleteUploadFile) {
     sIsUploading = false;
@@ -53,7 +53,7 @@ WriteStumble::UploadEnded(bool deleteUploadFile)
 }
 
 void
-WriteStumble::WriteJSON(Partition aPart)
+WriteStumbleOnThread::WriteJSON(Partition aPart)
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
@@ -122,8 +122,8 @@ WriteStumble::WriteJSON(Partition aPart)
   }
 }
 
-WriteStumble::Partition
-WriteStumble::GetWritePosition()
+WriteStumbleOnThread::Partition
+WriteStumbleOnThread::GetWritePosition()
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
@@ -152,7 +152,7 @@ WriteStumble::GetWritePosition()
 }
 
 NS_IMETHODIMP
-WriteStumble::Run()
+WriteStumbleOnThread::Run()
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
@@ -161,9 +161,9 @@ WriteStumble::Run()
     return NS_OK;
   }
 
-  STUMBLER_DBG("In WriteStumble\n");
+  STUMBLER_DBG("In WriteStumbleOnThread\n");
 
-  if (IsUploadFileReady()) {
+  if (IsFileReadyForUpload()) {
     Upload();
   }
   else {
@@ -180,7 +180,7 @@ WriteStumble::Run()
 }
 
 void
-WriteStumble::Upload()
+WriteStumbleOnThread::Upload()
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
