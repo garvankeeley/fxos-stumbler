@@ -1,3 +1,6 @@
+#ifndef WRITESTUMBLE_H
+#define WRITESTUMBLE_H
+
 class WriteStumble : public Task
 {
 public:
@@ -26,3 +29,5 @@ private:
   nsCString mDesc;
   static int sCurrentFileNumber;
 };
+
+#endif

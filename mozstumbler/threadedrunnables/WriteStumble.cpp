@@ -1,3 +1,9 @@
+#include "WriteStumble.cpp"
+#include "nsPrintfCString.h"
+#include "nsDumpUtils.h"
+#include "nsGZFileWriter.h"
+#include "nsIFileStreams.h"
+#include "nsIInputStream.h"
 
 #define OLDEST_FILE_NUMBER 1
 #define MAXFILENUM 4
