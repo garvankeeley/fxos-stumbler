@@ -4,20 +4,19 @@
 class UploadStumbleRunnable final : public nsRunnable
 {
 public:
-  UploadStumbleRunnable() {}
+  explicit UploadStumbleRunnable(const nsACString& aUploadData);
 
   NS_IMETHOD Run() override;
 private:
   virtual ~UploadStumbleRunnable() {}
+  const nsCString mUploadData;
 };
 
 
 class UploadEventListener : public nsIDOMEventListener
 {
 public:
-  explicit UploadEventListener(int64_t aFileSize)
-  : mFileSize(aFileSize)
-  {}
+  UploadEventListener(nsCOMPtr<nsIXMLHttpRequest> aXHR, int64_t aFileSize);
 
   /*interfaces for addref and release and queryinterface*/
   NS_DECL_ISUPPORTS
@@ -26,6 +25,7 @@ public:
 protected:
   virtual ~UploadEventListener() {}
   int64_t mFileSize;
+  nsCOMPtr<nsIXMLHttpRequest> mXHR;
 };
 
 #endif

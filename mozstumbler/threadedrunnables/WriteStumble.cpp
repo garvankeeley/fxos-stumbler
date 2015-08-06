@@ -6,157 +6,61 @@
 #include "nsIInputStream.h"
 #include "../StumblerLogging.h"
 
-#define OLDEST_FILE_NUMBER 1
-#define MAXFILENUM 4
-#define MAXUPLOADFILENUM 15
-#define MAXFILESIZE_KB 12.5 * 1024
+#define MAXFILESIZE_KB 15 * 1024
 
-int WriteStumble::sCurrentFileNumber = 1;
-int WriteStumble::sUploadFileNumber = 0;
+std::atomic_bool WriteStumble::sIsUploading(false);
 
-nsCString
-Filename(int aFileNum)
+NS_NAMED_LITERAL_CSTRING(kOutputFileNameInProgress, "stumbles.json.gz");
+NS_NAMED_LITERAL_CSTRING(kOutputFileNameCompleted, "stumbles.done.json.gz");
+NS_NAMED_LITERAL_CSTRING(kOutputDirName, "mozstumbler");
+
+void
+WriteStumble::UploadEnded(bool deleteUploadFile)
 {
-  return nsPrintfCString("feeding-%d.json.gz", aFileNum);
-}
+  if (!deleteUploadFile) {
+    sIsUploading = false;
+    return;
+  }
 
-nsCString
-UploadFilename(int aFileNum)
-{
-  return nsPrintfCString("upload-%.2d.json.gz", aFileNum);
-}
+  class DeleteRunnable : public nsRunnable
+  {
+  public:
+    DeleteRunnable() {}
 
-nsCString
-GetDir()
-{
-  return NS_LITERAL_CSTRING("stumble");
+    NS_IMETHODIMP
+    Run() override
+    {
+      nsCOMPtr<nsIFile> tmpFile;
+      rv = nsDumpUtils::OpenTempFile(kOutputFileNameCompleted,
+                                     getter_AddRefs(tmpFile),
+                                     kOutputDirName,
+                                     nsDumpUtils::CREATE);
+      if (!NS_FAILED(rv)) {
+        tmpFile->Remove(true);
+      }
+      // critically, this sets this flag to false so writing can happen again
+      sIsUploading = false;
+    }
+
+  private:
+    ~DeleteRunnable() {}
+  };
+
+  nsCOMPtr<nsIEventTarget> target = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
+  MOZ_ASSERT(target);
+  nsCOMPtr<nsIRunnable> event = new DeleteRunnable();
+  target->Dispatch(event, NS_DISPATCH_NORMAL);
 }
 
 void
-SetUploadFileNum()
-{
-  MOZ_ASSERT(!NS_IsMainThread());
-
-  for (int i = 1; i <= MAXUPLOADFILENUM; i++) {
-    nsresult rv;
-    nsCOMPtr<nsIFile> tmpFile;
-    rv = nsDumpUtils::OpenTempFile(UploadFilename(i),
-                                   getter_AddRefs(tmpFile), GetDir(), nsDumpUtils::CREATE);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      STUMBLER_ERR("OpenFile failed");
-      return;
-    }
-
-    int64_t fileSize = 0;
-    rv = tmpFile->GetFileSize(&fileSize);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      STUMBLER_ERR("GetFileSize failed");
-      return;
-    }
-    if (fileSize == 0) {
-      WriteStumble::sUploadFileNumber = i - 1;
-      tmpFile->Remove(true);
-      return;
-    }
-  }
-  WriteStumble::sUploadFileNumber = MAXUPLOADFILENUM;
-  STUMBLER_DBG("SetUploadFile filenum = %d (End)\n", WriteStumble::sUploadFileNumber);
-}
-
-nsresult
-RemoveOldestUploadFile(int aFileCount)
-{
-  MOZ_ASSERT(!NS_IsMainThread());
-
-  // remove oldest upload file
-  nsCOMPtr<nsIFile> tmpFile;
-  nsresult rv = nsDumpUtils::OpenTempFile(UploadFilename(OLDEST_FILE_NUMBER), getter_AddRefs(tmpFile),
-                                          GetDir(), nsDumpUtils::CREATE);
-  nsAutoString targetFilename;
-  rv = tmpFile->GetLeafName(targetFilename);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
-  rv = tmpFile->Remove(true);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
-
-  // Rename the upload files. (keep the oldest file as 'upload-1.json.gz')
-  for (int idx = 0; idx < aFileCount; idx++) {
-    nsCOMPtr<nsIFile> file;
-    nsDumpUtils::OpenTempFile(UploadFilename(idx+1), getter_AddRefs(file),
-                              GetDir(), nsDumpUtils::CREATE);
-    nsAutoString currentFilename;
-    rv = file->GetLeafName(currentFilename);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
-    }
-    rv = file->MoveTo(/* directory */ nullptr, targetFilename);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
-    }
-    targetFilename = currentFilename; // keep current leafname for next iteration usage
-  }
-  WriteStumble::sUploadFileNumber--;
-  return NS_OK;
-}
-
-nsresult
-WriteStumble::MoveOldestFileAsUploadFile()
-{
-  MOZ_ASSERT(!NS_IsMainThread());
-
-  nsresult rv;
-  // make sure that uploadfile number is less than MAXUPLOADFILENUM
-  if (sUploadFileNumber == MAXUPLOADFILENUM) {
-    rv = RemoveOldestUploadFile(MAXUPLOADFILENUM);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
-    }
-  }
-  sUploadFileNumber++;
-
-  // Find out the target name of upload file we need
-  nsCOMPtr<nsIFile> tmpFile;
-  rv = nsDumpUtils::OpenTempFile(UploadFilename(sUploadFileNumber), getter_AddRefs(tmpFile),
-                                 GetDir(), nsDumpUtils::CREATE);
-  nsAutoString targetFilename;
-  rv = tmpFile->GetLeafName(targetFilename);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
-
-  // Rename the feeding file. (keep the oldest file as 'feeding-1.json.gz')
-  // feeding-1.json.gz to upload-%d.json.gz
-  // feeding-4.json.jz -> feeding-3.json.jz -> feeding-2.json.jz -> feeding-1.json.jz
-  for (int idx = 0; idx < MAXFILENUM; idx++) {
-    nsCOMPtr<nsIFile> file;
-    nsDumpUtils::OpenTempFile(Filename(idx+1), getter_AddRefs(file),
-                              GetDir(), nsDumpUtils::CREATE);
-    nsAutoString currentFilename;
-    rv = file->GetLeafName(currentFilename);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
-    }
-    rv = file->MoveTo(/* directory */ nullptr, targetFilename);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
-    }
-    targetFilename = currentFilename; // keep current leafname for next iteration usage
-  }
-  return NS_OK;
-}
-
-void
-WriteStumble::WriteJSON(Partition aPart, int aFileNum)
+WriteStumble::WriteJSON(Partition aPart)
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
   nsCOMPtr<nsIFile> tmpFile;
   nsresult rv;
-  rv = nsDumpUtils::OpenTempFile(Filename(aFileNum), getter_AddRefs(tmpFile),
-                                 GetDir(), nsDumpUtils::CREATE);
+  rv = nsDumpUtils::OpenTempFile(kOutputFileNameInProgress, getter_AddRefs(tmpFile),
+                                 kOutputDirName, nsDumpUtils::CREATE);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     STUMBLER_ERR("Open a file for stumble failed");
     return;
@@ -185,7 +89,9 @@ WriteStumble::WriteJSON(Partition aPart, int aFileNum)
     if (NS_WARN_IF(NS_FAILED(rv))) {
       STUMBLER_ERR("gzWriter finish failed");
     }
-    sCurrentFileNumber++;
+
+    tmpFile->rename(kOutputFileNameCompleted);
+
     return;
   }
 
@@ -211,29 +117,19 @@ WriteStumble::WriteJSON(Partition aPart, int aFileNum)
     return;
   }
   if (fileSize >= MAXFILESIZE_KB) {
-    WriteJSON(End, sCurrentFileNumber);
+    WriteJSON(End);
     return;
   }
 }
 
 WriteStumble::Partition
-WriteStumble::SetCurrentFile()
+WriteStumble::GetWritePosition()
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
-  nsresult rv;
-  if (sCurrentFileNumber > MAXFILENUM) {
-    rv = MoveOldestFileAsUploadFile();
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      STUMBLER_ERR("Remove oldest file failed");
-      return Unknown;
-    }
-    sCurrentFileNumber = MAXFILENUM;
-  }
-
   nsCOMPtr<nsIFile> tmpFile;
-  rv = nsDumpUtils::OpenTempFile(Filename(sCurrentFileNumber), getter_AddRefs(tmpFile),
-                                 GetDir(), nsDumpUtils::CREATE);
+  rv = nsDumpUtils::OpenTempFile(kOutputFileNameInProgress, getter_AddRefs(tmpFile),
+                                 kOutputDirName, nsDumpUtils::CREATE);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     STUMBLER_ERR("Open a file for stumble failed");
     return Unknown;
@@ -249,8 +145,7 @@ WriteStumble::SetCurrentFile()
   if (fileSize == 0) {
     return Begining;
   } else if (fileSize >= MAXFILESIZE_KB) {
-    sCurrentFileNumber++;
-    return SetCurrentFile();
+    return End;
   } else {
     return Middle;
   }
@@ -260,15 +155,66 @@ NS_IMETHODIMP
 WriteStumble::Run()
 {
   MOZ_ASSERT(!NS_IsMainThread());
-  
-  STUMBLER_DBG("In WriteStumble\n");
-  Partition partition = SetCurrentFile();
-  if (partition == Unknown) {
-    STUMBLER_ERR("SetCurrentFile failed, skip once");
-    return NS_OK;
-  } else {
-    WriteJSON(partition, sCurrentFileNumber);
+
+  bool b = sIsAlreadyRunning.test_and_set();
+  if (b) {
     return NS_OK;
   }
+
+  STUMBLER_DBG("In WriteStumble\n");
+
+  if (IsUploadFileReady()) {
+    Upload();
+  }
+  else {
+    Partition partition = GetWritePosition();
+    if (partition == Unknown) {
+      STUMBLER_ERR("GetWritePosition failed, skip once");
+    } else {
+      WriteJSON(partition);
+    }
+  }
+
+  sIsAlreadyRunning = false;
+  return NS_OK;
 }
 
+void
+WriteStumble::Upload()
+{
+  MOZ_ASSERT(!NS_IsMainThread());
+
+  bool b = sIsUploading.test_and_set();
+  if (b) {
+    return;
+  }
+
+  nsCOMPtr<nsIFile> tmpFile;
+  nsresult rv = nsDumpUtils::OpenTempFile(kOutputFileNameCompleted, getter_AddRefs(tmpFile),
+                                          kOutputDirName, nsDumpUtils::CREATE);
+  int64_t fileSize;
+  rv = tmpFile->GetFileSize(&fileSize);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    STUMBLER_ERR("GetFileSize failed");
+    sIsUploading = false;
+    return;
+  }
+  STUMBLER_LOG("size : %lld", fileSize);
+  if (fileSize <= 0) {
+    sIsUploading = false;
+    return;
+  }
+
+  // prepare json into nsIInputStream
+  nsCOMPtr<nsIInputStream> inStream;
+  rv = NS_NewLocalFileInputStream(getter_AddRefs(inStream), tmpFile, -1, -1,
+                                  nsIFileInputStream::DEFER_OPEN);
+  NS_ENSURE_TRUE_VOID(inStream);
+
+  nsAutoCString bufStr;
+  rv = NS_ReadInputStreamToString(inStream, bufStr, fileSize);
+  NS_ENSURE_SUCCESS_VOID(rv);
+
+  nsCOMPtr<UploadStumbleRunnable> uploader = new UploadStumbleRunnable(bufStr);
+  NS_DispatchToMainThread(uploader);
+}
