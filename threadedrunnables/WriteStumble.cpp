@@ -26,7 +26,10 @@ GetDir()
 }
 
 void
-SetUploadFileNum() {
+SetUploadFileNum()
+{
+  MOZ_ASSERT(!NS_IsMainThread());
+
   for (int i = 1; i <= MAXUPLOADFILENUM; i++) {
     nsresult rv;
     nsCOMPtr<nsIFile> tmpFile;
@@ -56,6 +59,8 @@ SetUploadFileNum() {
 nsresult
 RemoveOldestUploadFile(int aFileCount)
 {
+  MOZ_ASSERT(!NS_IsMainThread());
+
   // remove oldest upload file
   nsCOMPtr<nsIFile> tmpFile;
   nsresult rv = nsDumpUtils::OpenTempFile(UploadFilename(OLDEST_FILE_NUMBER), getter_AddRefs(tmpFile),
@@ -93,6 +98,8 @@ RemoveOldestUploadFile(int aFileCount)
 nsresult
 WriteStumble::MoveOldestFileAsUploadFile()
 {
+  MOZ_ASSERT(!NS_IsMainThread());
+
   nsresult rv;
   // make sure that uploadfile number is less than MAXUPLOADFILENUM
   if (sUploadFileNumber == MAXUPLOADFILENUM) {
@@ -135,7 +142,10 @@ WriteStumble::MoveOldestFileAsUploadFile()
 }
 
 void
-WriteStumble::WriteJSON(Partition aPart, int aFileNum) {
+WriteStumble::WriteJSON(Partition aPart, int aFileNum)
+{
+  MOZ_ASSERT(!NS_IsMainThread());
+
   nsCOMPtr<nsIFile> tmpFile;
   nsresult rv;
   rv = nsDumpUtils::OpenTempFile(Filename(aFileNum), getter_AddRefs(tmpFile),
@@ -200,7 +210,10 @@ WriteStumble::WriteJSON(Partition aPart, int aFileNum) {
 }
 
 WriteStumble::Partition
-WriteStumble::SetCurrentFile() {
+WriteStumble::SetCurrentFile()
+{
+  MOZ_ASSERT(!NS_IsMainThread());
+
   nsresult rv;
   if (sCurrentFileNumber > MAXFILENUM) {
     rv = MoveOldestFileAsUploadFile();
@@ -237,7 +250,10 @@ WriteStumble::SetCurrentFile() {
 }
 
 void
-WriteStumble::Run() {
+WriteStumble::Run()
+{
+  MOZ_ASSERT(!NS_IsMainThread());
+  
   STUMBLER_DBG("In WriteStumble\n");
   Partition partition = SetCurrentFile();
   if (partition == Unknown) {
