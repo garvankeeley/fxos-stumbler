@@ -16,7 +16,7 @@ UploadStumbleRunnable::Run()
   MOZ_ASSERT(NS_IsMainThread());
 
   nsCOMPtr<nsIWritableVariant> variant =
-  do_CreateInstance("@mozilla.org/variant;1", &rv);
+    do_CreateInstance("@mozilla.org/variant;1", &rv);
   NS_ENSURE_SUCCESS_VOID(rv);
   rv = variant->SetAsACString(mUploadData);
   NS_ENSURE_SUCCESS_VOID(rv);

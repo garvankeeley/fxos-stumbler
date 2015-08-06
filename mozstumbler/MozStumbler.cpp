@@ -8,6 +8,7 @@
 #include "nsGeoPosition.h"
 #include "nsPrintfCString.h"
 #include "StumblerLogging.h"
+#include "WriteStumbleOnThread.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -201,7 +202,7 @@ StumblerInfo::DumpStumblerInfo()
   nsCOMPtr<nsIEventTarget> target = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
   MOZ_ASSERT(target);
 
-  nsCOMPtr<nsIRunnable> event = new WriteStumble(desc);
+  nsCOMPtr<nsIRunnable> event = new WriteStumbleOnThread(desc);
   target->Dispatch(event, NS_DISPATCH_NORMAL);
   return;
 }

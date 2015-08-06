@@ -8,8 +8,6 @@
 
 #define MAXFILESIZE_KB 15 * 1024
 
-std::atomic_bool WriteStumbleOnThread::sIsUploading(false);
-
 NS_NAMED_LITERAL_CSTRING(kOutputFileNameInProgress, "stumbles.json.gz");
 NS_NAMED_LITERAL_CSTRING(kOutputFileNameCompleted, "stumbles.done.json.gz");
 NS_NAMED_LITERAL_CSTRING(kOutputDirName, "mozstumbler");
