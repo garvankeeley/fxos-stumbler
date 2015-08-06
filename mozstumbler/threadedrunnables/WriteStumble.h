@@ -1,7 +1,7 @@
 #ifndef WRITESTUMBLE_H
 #define WRITESTUMBLE_H
 
-class WriteStumble : public Task
+class WriteStumble : public nsRunnable
 {
 public:
   NS_INLINE_DECL_REFCOUNTING(WriteStumble)
@@ -10,7 +10,7 @@ public:
   : mDesc(aDesc)
   {}
 
-  void Run() override;
+  NS_IMETHODIMP Run() override;
 
   enum Partition {
     Begining,

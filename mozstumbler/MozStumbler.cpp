@@ -197,8 +197,12 @@ StumblerInfo::DumpStumblerInfo()
   CellNetworkInfoToString(desc);
   desc += mWifiDesc;
 
-  STUMBLER_DBG("dispatch dump event to IO thread\n");
-  XRE_GetIOMessageLoop()->PostTask(FROM_HERE, new WriteStumble(desc));
+  STUMBLER_DBG("dispatch write event to thread\n");
+  nsCOMPtr<nsIEventTarget> target = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
+  MOZ_ASSERT(target);
+
+  nsCOMPtr<nsIRunnable> event = new WriteStumble(desc);
+  target->Dispatch(event, NS_DISPATCH_NORMAL);
   return;
 }
 

@@ -6,7 +6,7 @@ class UploadStumbleRunnable final : public nsRunnable
 public:
   UploadStumbleRunnable() {}
 
-  NS_IMETHOD Run();
+  NS_IMETHOD Run() override;
 private:
   virtual ~UploadStumbleRunnable() {}
 };

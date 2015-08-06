@@ -256,7 +256,7 @@ WriteStumble::SetCurrentFile()
   }
 }
 
-void
+NS_IMETHODIMP
 WriteStumble::Run()
 {
   MOZ_ASSERT(!NS_IsMainThread());
@@ -265,10 +265,10 @@ WriteStumble::Run()
   Partition partition = SetCurrentFile();
   if (partition == Unknown) {
     STUMBLER_ERR("SetCurrentFile failed, skip once");
-    return;
+    return NS_OK;
   } else {
     WriteJSON(partition, sCurrentFileNumber);
-    return;
+    return NS_OK;
   }
 }
 
