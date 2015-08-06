@@ -4,6 +4,7 @@
 #include "nsGZFileWriter.h"
 #include "nsIFileStreams.h"
 #include "nsIInputStream.h"
+#include "../StumblerLogging.h"
 
 #define OLDEST_FILE_NUMBER 1
 #define MAXFILENUM 4

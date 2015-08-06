@@ -7,6 +7,7 @@
 #include "MozStumbler.h"
 #include "nsGeoPosition.h"
 #include "nsPrintfCString.h"
+#include "StumblerLogging.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

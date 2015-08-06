@@ -3,6 +3,7 @@
 #include "nsIXMLHttpRequest.h"
 #include "nsIURLFormatter.h"
 #include "nsIScriptSecurityManager.h"
+#include "StumblerLogging.h"
 
 NS_IMETHODIMP
 UploadStumbleRunnable::Run()
