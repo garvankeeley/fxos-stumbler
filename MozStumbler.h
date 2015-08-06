@@ -43,34 +43,6 @@ private:
 
 NS_IMPL_ISUPPORTS(StumblerInfo, nsICellInfoListCallback, nsIWifiScanResultsReady)
 
-class DumpStumblerFeedingEvent : public Task
-{
-  public:
-    NS_INLINE_DECL_REFCOUNTING(DumpStumblerFeedingEvent)
-
-    explicit DumpStumblerFeedingEvent(const nsCString& aDesc)
-      : mDesc(aDesc)
-    {}
-
-    void Run() override;
-
-    enum Partition {
-      Begining,
-      Middle,
-      End,
-      Unknown
-    };
-  static int sUploadFileNumber;
-
-  private:
-    ~DumpStumblerFeedingEvent() {}
-    nsresult MoveOldestFileAsUploadFile();
-    Partition SetCurrentFile();
-    void WriteJSON(Partition aPart, int aFileNum);
-
-    nsCString mDesc;
-    static int sCurrentFileNumber;
-};
 
 class UploadStumbleRunnable final : public nsRunnable
 {
