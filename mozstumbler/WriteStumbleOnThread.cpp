@@ -1,12 +1,16 @@
-#include "WriteStumbleOnThread.cpp"
-#include "nsPrintfCString.h"
+#include "WriteStumbleOnThread.h"
+#include "StumblerLogging.h"
+#include "UploadStumbleRunnable.h"
 #include "nsDumpUtils.h"
 #include "nsGZFileWriter.h"
 #include "nsIFileStreams.h"
 #include "nsIInputStream.h"
-#include "StumblerLogging.h"
+#include "nsPrintfCString.h"
 
-#define MAXFILESIZE_KB 15 * 1024
+#define MAXFILESIZE_KB (15 * 1024)
+
+mozilla::Atomic<bool> WriteStumbleOnThread::sIsUploading(false);
+mozilla::Atomic<bool> WriteStumbleOnThread::sIsAlreadyRunning(false);
 
 NS_NAMED_LITERAL_CSTRING(kOutputFileNameInProgress, "stumbles.json.gz");
 NS_NAMED_LITERAL_CSTRING(kOutputFileNameCompleted, "stumbles.done.json.gz");
@@ -29,15 +33,16 @@ WriteStumbleOnThread::UploadEnded(bool deleteUploadFile)
     Run() override
     {
       nsCOMPtr<nsIFile> tmpFile;
-      rv = nsDumpUtils::OpenTempFile(kOutputFileNameCompleted,
-                                     getter_AddRefs(tmpFile),
-                                     kOutputDirName,
-                                     nsDumpUtils::CREATE);
+      nsresult rv = nsDumpUtils::OpenTempFile(kOutputFileNameCompleted,
+                                              getter_AddRefs(tmpFile),
+                                              kOutputDirName,
+                                              nsDumpUtils::CREATE);
       if (!NS_FAILED(rv)) {
         tmpFile->Remove(true);
       }
       // critically, this sets this flag to false so writing can happen again
       sIsUploading = false;
+      return NS_OK;
     }
 
   private:
@@ -75,7 +80,7 @@ WriteStumbleOnThread::WriteJSON(Partition aPart)
    The json format is like below.
    {items:[
    {item},
-   {item},
+   {item}A,
    {item}
    ]}
    */
@@ -88,6 +93,7 @@ WriteStumbleOnThread::WriteJSON(Partition aPart)
       STUMBLER_ERR("gzWriter finish failed");
     }
 
+    // TODO: Alphan how do I rename again?
     tmpFile->rename(kOutputFileNameCompleted);
 
     return;
@@ -126,18 +132,18 @@ WriteStumbleOnThread::GetWritePosition()
   MOZ_ASSERT(!NS_IsMainThread());
 
   nsCOMPtr<nsIFile> tmpFile;
-  rv = nsDumpUtils::OpenTempFile(kOutputFileNameInProgress, getter_AddRefs(tmpFile),
-                                 kOutputDirName, nsDumpUtils::CREATE);
+  nsresult rv = nsDumpUtils::OpenTempFile(kOutputFileNameInProgress, getter_AddRefs(tmpFile),
+                                          kOutputDirName, nsDumpUtils::CREATE);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     STUMBLER_ERR("Open a file for stumble failed");
-    return Unknown;
+    return Partition::Unknown;
   }
 
   int64_t fileSize = 0;
   rv = tmpFile->GetFileSize(&fileSize);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     STUMBLER_ERR("GetFileSize failed");
-    return Unknown;
+    return Partition::Unknown;
   }
 
   if (fileSize == 0) {
@@ -154,7 +160,7 @@ WriteStumbleOnThread::Run()
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
-  bool b = sIsAlreadyRunning.test_and_set();
+  bool b = sIsAlreadyRunning.exchange(true);
   if (b) {
     return NS_OK;
   }
@@ -165,12 +171,11 @@ WriteStumbleOnThread::Run()
 
   if (UploadFileStatus::NoFile != status) {
     if (UploadFileStatus::ExistsAndReadyToUpload == status) {
-     Upload();
+      Upload();
     }
-  }
-  else {
+  } else {
     Partition partition = GetWritePosition();
-    if (partition == Unknown) {
+    if (partition == Partition::Unknown) {
       STUMBLER_ERR("GetWritePosition failed, skip once");
     } else {
       WriteJSON(partition);
@@ -191,7 +196,7 @@ WriteStumbleOnThread::Run()
  The Exists case means that the upload and the stumbling is rate limited
  per-day to the size of the one file.
  */
-UploadFileStatus
+WriteStumbleOnThread::UploadFileStatus
 WriteStumbleOnThread::GetUploadFileStatus()
 {
   // TODO
@@ -210,7 +215,7 @@ WriteStumbleOnThread::Upload()
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
-  bool b = sIsUploading.test_and_set();
+  bool b = sIsUploading.exchange(true);
   if (b) {
     return;
   }
@@ -241,6 +246,6 @@ WriteStumbleOnThread::Upload()
   rv = NS_ReadInputStreamToString(inStream, bufStr, fileSize);
   NS_ENSURE_SUCCESS_VOID(rv);
 
-  nsCOMPtr<UploadStumbleRunnable> uploader = new UploadStumbleRunnable(bufStr);
+  nsCOMPtr<nsIRunnable> uploader = new UploadStumbleRunnable(bufStr);
   NS_DispatchToMainThread(uploader);
 }

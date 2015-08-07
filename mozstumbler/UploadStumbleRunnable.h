@@ -1,6 +1,10 @@
 #ifndef UPLOADSTUMBLERUNNABLE_H
 #define UPLOADSTUMBLERUNNABLE_H
 
+#include "nsIDOMEventListener.h"
+
+class nsIXMLHttpRequest;
+
 class UploadStumbleRunnable final : public nsRunnable
 {
 public:
@@ -24,8 +28,8 @@ public:
 
 protected:
   virtual ~UploadEventListener() {}
-  int64_t mFileSize;
   nsCOMPtr<nsIXMLHttpRequest> mXHR;
+  int64_t mFileSize;
 };
 
 #endif

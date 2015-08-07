@@ -7,6 +7,7 @@
 #ifndef mozilla_system_mozstumbler_h__
 #define mozilla_system_mozstumbler_h__
 
+#include "nsIDOMEventTarget.h"
 #include "nsICellInfo.h"
 #include "nsIWifi.h"
 

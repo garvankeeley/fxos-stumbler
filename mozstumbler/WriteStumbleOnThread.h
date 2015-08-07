@@ -1,7 +1,7 @@
 #ifndef WriteStumbleOnThread_H
 #define WriteStumbleOnThread_H
 
-#include <atomic>
+#include "mozilla/Atomics.h"
 
 class WriteStumbleOnThread : public nsRunnable
 {
@@ -25,19 +25,21 @@ private:
 
   enum class UploadFileStatus {
     NoFile, Exists, ExistsAndReadyToUpload
-  }
+  };
 
   ~WriteStumbleOnThread() {}
 
   Partition GetWritePosition();
   UploadFileStatus GetUploadFileStatus();
   void WriteJSON(Partition aPart);
-
+  void Upload();
+  
   nsCString mDesc;
+
   // Don't write while uploading is happening
-  std::atomic_flag sIsUploading;
+  static mozilla::Atomic<bool> sIsUploading;
   // Only run one instance of this
-  std::atomic_flag sIsAlreadyRunning;
+  static mozilla::Atomic<bool> sIsAlreadyRunning;
 };
 
 #endif

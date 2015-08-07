@@ -9,6 +9,7 @@
 #include "nsPrintfCString.h"
 #include "StumblerLogging.h"
 #include "WriteStumbleOnThread.h"
+#include "nsNetCID.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
