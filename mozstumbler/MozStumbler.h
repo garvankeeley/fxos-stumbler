@@ -7,6 +7,7 @@
 #ifndef mozilla_system_mozstumbler_h__
 #define mozilla_system_mozstumbler_h__
 
+#include "nsIDOMEventTarget.h"
 #include "nsICellInfo.h"
 #include "nsIWifi.h"
 
@@ -43,71 +44,6 @@ private:
 
 NS_IMPL_ISUPPORTS(StumblerInfo, nsICellInfoListCallback, nsIWifiScanResultsReady)
 
-class DumpStumblerFeedingEvent : public Task
-{
-  public:
-    NS_INLINE_DECL_REFCOUNTING(DumpStumblerFeedingEvent)
-
-    explicit DumpStumblerFeedingEvent(const nsCString& aDesc)
-      : mDesc(aDesc)
-    {}
-
-    void Run() override;
-
-    enum Partition {
-      Begining,
-      Middle,
-      End,
-      Unknown
-    };
-  static int sUploadFileNumber;
-
-  private:
-    ~DumpStumblerFeedingEvent() {}
-    nsresult MoveOldestFileAsUploadFile();
-    Partition SetCurrentFile();
-    void WriteJSON(Partition aPart, int aFileNum);
-
-    nsCString mDesc;
-    static int sCurrentFileNumber;
-};
-
-class UploadStumbleRunnable final : public nsRunnable
-{
-public:
-  UploadStumbleRunnable()
-  {}
-
-  void TryToUploadFile();
-
-  NS_IMETHOD Run()
-  {
-    MOZ_ASSERT(NS_IsMainThread());
-    nsContentUtils::LogMessageToConsole("UploadStumbleRunnable\n");
-    TryToUploadFile();
-    return NS_OK;
-  }
-
-private:
-  virtual ~UploadStumbleRunnable() {}
-};
-
-
-class UploadEventListener : public nsIDOMEventListener
-{
-public:
-  explicit UploadEventListener(int64_t aFileSize)
-  : mFileSize(aFileSize)
-  {}
-
-/*interfaces for addref and release and queryinterface*/
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIDOMEVENTLISTENER
-
- protected:
-  virtual ~UploadEventListener() {}
-  int64_t mFileSize;
-};
 
 #endif // mozilla_system_mozstumbler_h__
 
