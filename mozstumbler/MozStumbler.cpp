@@ -13,6 +13,10 @@
 
 using namespace mozilla;
 using namespace mozilla::dom;
+
+
+NS_IMPL_ISUPPORTS(StumblerInfo, nsICellInfoListCallback, nsIWifiScanResultsReady)
+
 void
 StumblerInfo::SetWifiInfoResponseReceived()
 {
