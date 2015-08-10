@@ -8,6 +8,7 @@
 #include "nsPrintfCString.h"
 
 #define MAXFILESIZE_KB (15 * 1024)
+#define ONEDAY_IN_MSEC (24 * 60 * 60 * 1000)
 
 mozilla::Atomic<bool> WriteStumbleOnThread::sIsUploading(false);
 mozilla::Atomic<bool> WriteStumbleOnThread::sIsAlreadyRunning(false);
@@ -80,7 +81,7 @@ WriteStumbleOnThread::WriteJSON(Partition aPart)
    The json format is like below.
    {items:[
    {item},
-   {item}A,
+   {item},
    {item}
    ]}
    */
@@ -93,9 +94,26 @@ WriteStumbleOnThread::WriteJSON(Partition aPart)
       STUMBLER_ERR("gzWriter finish failed");
     }
 
-    // TODO: Alphan how do I rename again?
-    tmpFile->rename(kOutputFileNameCompleted);
-
+    nsCOMPtr<nsIFile> targetFile;
+    nsresult rv = nsDumpUtils::OpenTempFile(kOutputFileNameCompleted, getter_AddRefs(targetFile),
+                                            kOutputDirName, nsDumpUtils::CREATE);
+    nsAutoString targetFilename;
+    rv = targetFile->GetLeafName(targetFilename);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      STUMBLER_ERR("Get Filename failed");
+      return;
+    }
+    rv = targetFile->Remove(true);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      STUMBLER_ERR("Remove File failed");
+      return;
+    }
+    // Rename tmpfile
+    rv = tmpFile->MoveTo(/* directory */ nullptr, targetFilename);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      STUMBLER_ERR("Rename File failed");
+      return;
+    }
     return;
   }
 
@@ -199,15 +217,26 @@ WriteStumbleOnThread::Run()
 WriteStumbleOnThread::UploadFileStatus
 WriteStumbleOnThread::GetUploadFileStatus()
 {
-  // TODO
-  // Alphen can you help fill this in?
-  if (file_exists(kOutputFileNameCompleted)) {
-    if (file_is_at_least_one_day_old(kOutputFileNameCompleted)) {
-     return UploadFileStatus::ExistsAndReadyToUpload;
-    }
-    return UploadFileStatus::Exists;
+  nsCOMPtr<nsIFile> tmpFile;
+  nsresult rv = nsDumpUtils::OpenTempFile(kOutputFileNameCompleted, getter_AddRefs(tmpFile),
+                                          kOutputDirName, nsDumpUtils::CREATE);
+  int64_t fileSize;
+  rv = tmpFile->GetFileSize(&fileSize);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    STUMBLER_ERR("GetFileSize failed");
+    return UploadFileStatus::NoFile;
   }
-  return UploadFileStatus::NoFile;
+  if (fileSize <= 0) {
+    tmpFile->Remove(true);
+    return UploadFileStatus::NoFile;
+  }
+
+  PRTime lastModifiedTime;
+  tmpFile->GetLastModifiedTime(&lastModifiedTime);
+  if ((PR_Now() / PR_USEC_PER_MSEC) - lastModifiedTime >= ONEDAY_IN_MSEC) {
+    return UploadFileStatus::ExistsAndReadyToUpload;
+  }
+  return UploadFileStatus::Exists;
 }
 
 void

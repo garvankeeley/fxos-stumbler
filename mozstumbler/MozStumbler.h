@@ -41,9 +41,5 @@ private:
   int mCellInfoResponsesReceived;
   bool mIsWifiInfoResponseReceived;
 };
-
-NS_IMPL_ISUPPORTS(StumblerInfo, nsICellInfoListCallback, nsIWifiScanResultsReady)
-
-
 #endif // mozilla_system_mozstumbler_h__
 
