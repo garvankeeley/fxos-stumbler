@@ -61,6 +61,8 @@ UploadStumbleRunnable::Run()
   rv = target->AddEventListener(NS_LITERAL_STRING("timeout"), listener, false);
   NS_ENSURE_SUCCESS(rv, rv);
   // loadend catches abort, load, and error
+  rv = target->AddEventListener(NS_LITERAL_STRING("load"), listener, false);
+  NS_ENSURE_SUCCESS(rv, rv);
   rv = target->AddEventListener(NS_LITERAL_STRING("loadend"), listener, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -81,7 +83,6 @@ NS_IMETHODIMP
 UploadEventListener::HandleEvent(nsIDOMEvent* aEvent)
 {
   nsString type;
-
   if (NS_FAILED(aEvent->GetType(type))) {
     STUMBLER_ERR("Failed to get event type");
     WriteStumbleOnThread::UploadEnded(false);

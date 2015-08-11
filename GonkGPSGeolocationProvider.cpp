@@ -15,7 +15,7 @@
  */
 
 #include "GonkGPSGeolocationProvider.h"
-#include "MozStumbler.h"
+#include "mozstumbler/MozStumbler.h"
 
 #include <pthread.h>
 #include <hardware/gps.h>
@@ -155,7 +155,6 @@ GonkGPSGeolocationProvider::LocationCallback(GpsLocation* location)
 
 
   NS_DispatchToMainThread(new UpdateLocationEvent(somewhere));
-  NS_DispatchToMainThread(new UploadStumbleRunnable());
 
   class RequestCellInfoEvent : public nsRunnable {
   public:
