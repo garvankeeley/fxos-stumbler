@@ -40,6 +40,15 @@ private:
   static mozilla::Atomic<bool> sIsUploading;
   // Only run one instance of this
   static mozilla::Atomic<bool> sIsAlreadyRunning;
+
+  // Limit the upload attempts per day. If the device is rebooted
+  // this resets the allowed attempts, which is acceptable.
+  struct UploadFreqGuard {
+    int attempts;
+    int daySinceEpoch;
+  };
+  static UploadFreqGuard sUploadFreqGuard;
+
 };
 
 #endif
