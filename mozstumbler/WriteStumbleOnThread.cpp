@@ -9,9 +9,11 @@
 
 #define MAXFILESIZE_KB (15 * 1024)
 #define ONEDAY_IN_MSEC (24 * 60 * 60 * 1000)
+#define MAX_UPLOAD_ATTEMPTS 20
 
 mozilla::Atomic<bool> WriteStumbleOnThread::sIsUploading(false);
 mozilla::Atomic<bool> WriteStumbleOnThread::sIsAlreadyRunning(false);
+WriteStumbleOnThread::UploadFreqGuard WriteStumbleOnThread::sUploadFreqGuard = {0};
 
 NS_NAMED_LITERAL_CSTRING(kOutputFileNameInProgress, "stumbles.json.gz");
 NS_NAMED_LITERAL_CSTRING(kOutputFileNameCompleted, "stumbles.done.json.gz");
@@ -246,6 +248,20 @@ WriteStumbleOnThread::Upload()
 
   bool b = sIsUploading.exchange(true);
   if (b) {
+    return;
+  }
+
+  time_t seconds = time(0);
+  int day = seconds / (60 * 60 * 24);
+
+  if (sUploadFreqGuard.daySinceEpoch < day) {
+    sUploadFreqGuard.daySinceEpoch = day;
+    sUploadFreqGuard.attempts = 0;
+  }
+
+  sUploadFreqGuard.attempts++;
+  if (sUploadFreqGuard.attempts > MAX_UPLOAD_ATTEMPTS) {
+    STUMBLER_ERR("Too many upload attempts today");
     return;
   }
 
