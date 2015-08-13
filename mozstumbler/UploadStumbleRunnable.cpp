@@ -103,7 +103,7 @@ UploadEventListener::HandleEvent(nsIDOMEvent* aEvent)
       doDelete = true;
     }
   } else {
-    STUMBLER_DBG("Receive %s Event", type.get());
+    STUMBLER_DBG("Receive %s Event", NS_ConvertUTF16toUTF8(type).get());
   }
 
   WriteStumbleOnThread::UploadEnded(doDelete);

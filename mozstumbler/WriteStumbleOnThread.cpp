@@ -212,7 +212,7 @@ WriteStumbleOnThread::Run()
  • if it is a day old -> ExistsAndReadyToUpload
  • if it is less than the current day old -> Exists
  • otherwise -> NoFile
- 
+
  The Exists case means that the upload and the stumbling is rate limited
  per-day to the size of the one file.
  */
