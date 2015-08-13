@@ -5,6 +5,10 @@
 
 class nsIXMLHttpRequest;
 
+/*
+ This runnable is managed by WriteStumbleOnThread only, see that class
+ for how this is scheduled.
+ */
 class UploadStumbleRunnable final : public nsRunnable
 {
 public:
