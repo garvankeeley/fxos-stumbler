@@ -7,8 +7,8 @@
 #include "nsIInputStream.h"
 #include "nsPrintfCString.h"
 
-#define MAXFILESIZE_KB (15 * 1024)
-#define ONEDAY_IN_MSEC (24 * 60 * 60 * 1000)
+#define MAXFILESIZE_KB (1 * 1024)
+#define ONEDAY_IN_MSEC (1000)
 #define MAX_UPLOAD_ATTEMPTS 20
 
 mozilla::Atomic<bool> WriteStumbleOnThread::sIsUploading(false);
@@ -22,6 +22,7 @@ NS_NAMED_LITERAL_CSTRING(kOutputDirName, "mozstumbler");
 void
 WriteStumbleOnThread::UploadEnded(bool deleteUploadFile)
 {
+  STUMBLER_DBG("uploadended\n");
   if (!deleteUploadFile) {
     sIsUploading = false;
     return;
@@ -58,6 +59,15 @@ WriteStumbleOnThread::UploadEnded(bool deleteUploadFile)
   target->Dispatch(event, NS_DISPATCH_NORMAL);
 }
 
+#define DUMP(o, s) \
+  do { \
+    const char* s2 = (s); \
+    uint32_t dummy; \
+    nsresult rv = (o)->Write((s2), strlen(s2), &dummy); \
+    if (NS_WARN_IF(NS_FAILED(rv))) \
+    STUMBLER_ERR("write err"); \
+  } while (0)
+
 void
 WriteStumbleOnThread::WriteJSON(Partition aPart)
 {
@@ -72,12 +82,20 @@ WriteStumbleOnThread::WriteJSON(Partition aPart)
     return;
   }
 
-  nsRefPtr<nsGZFileWriter> gzWriter = new nsGZFileWriter(nsGZFileWriter::Append);
-  rv = gzWriter->Init(tmpFile);
+//  nsRefPtr<nsGZFileWriter> gzWriter = new nsGZFileWriter(nsGZFileWriter::Append);
+//  rv = gzWriter->Init(tmpFile);
+//  if (NS_WARN_IF(NS_FAILED(rv))) {
+//    STUMBLER_ERR("gzWriter init failed");
+//    return;
+//  }
+
+  nsCOMPtr<nsIFileOutputStream> gzWriter = do_CreateInstance("@mozilla.org/network/file-output-stream;1");
+  rv = gzWriter->Init(tmpFile, PR_WRONLY | PR_APPEND, 0666, 0);
   if (NS_WARN_IF(NS_FAILED(rv))) {
-    STUMBLER_ERR("gzWriter init failed");
+    STUMBLER_ERR("Open a file for stumble failed");
     return;
   }
+
 
   /*
    The json format is like below.
@@ -90,8 +108,9 @@ WriteStumbleOnThread::WriteJSON(Partition aPart)
 
   // Need to add "]}" after the last item
   if (aPart == Partition::End) {
-    gzWriter->Write("]}");
-    rv = gzWriter->Finish();
+    //gzWriter->Write("]}");
+    DUMP(gzWriter, "]}");
+    rv = gzWriter->Close();
     if (NS_WARN_IF(NS_FAILED(rv))) {
       STUMBLER_ERR("gzWriter finish failed");
     }
@@ -121,14 +140,14 @@ WriteStumbleOnThread::WriteJSON(Partition aPart)
 
   // Need to add "{items:[" before the first item
   if (aPart == Partition::Begining) {
-    gzWriter->Write("{\"items\":[{");
+    DUMP(gzWriter, "{\"items\":[{");
   } else if (aPart == Partition::Middle) {
-    gzWriter->Write(",{");
+    DUMP(gzWriter, ",{");
   }
-  gzWriter->Write(mDesc.get());
+  DUMP(gzWriter, mDesc.get());
   //  one item is end with '}' (e.g. {item})
-  gzWriter->Write("}");
-  rv = gzWriter->Finish();
+  DUMP(gzWriter, "}");
+  rv = gzWriter->Close();
   if (NS_WARN_IF(NS_FAILED(rv))) {
     STUMBLER_ERR("gzWriter finish failed");
   }
@@ -185,7 +204,7 @@ WriteStumbleOnThread::Run()
     return NS_OK;
   }
 
-  STUMBLER_DBG("In WriteStumbleOnThread\n");
+  STUMBLER_DBG("In WriteStumbleOnThread 1\n");
 
   UploadFileStatus status = GetUploadFileStatus();
 
@@ -236,9 +255,11 @@ WriteStumbleOnThread::GetUploadFileStatus()
   PRTime lastModifiedTime;
   tmpFile->GetLastModifiedTime(&lastModifiedTime);
   if ((PR_Now() / PR_USEC_PER_MSEC) - lastModifiedTime >= ONEDAY_IN_MSEC) {
+    STUMBLER_DBG("UploadFileStatus::ExistsAndReadyToUpload \n");
     return UploadFileStatus::ExistsAndReadyToUpload;
   }
   return UploadFileStatus::Exists;
+  STUMBLER_DBG("UploadFileStatus::Exists \n");
 }
 
 void
@@ -246,10 +267,14 @@ WriteStumbleOnThread::Upload()
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
+  STUMBLER_DBG("1\n");
+
   bool b = sIsUploading.exchange(true);
   if (b) {
     return;
   }
+
+  STUMBLER_DBG("2\n");
 
   time_t seconds = time(0);
   int day = seconds / (60 * 60 * 24);
@@ -303,4 +328,8 @@ WriteStumbleOnThread::Upload()
 
   nsCOMPtr<nsIRunnable> uploader = new UploadStumbleRunnable(bufStr);
   NS_DispatchToMainThread(uploader);
+
+  
+
+  STUMBLER_DBG("3\n");
 }

@@ -17,6 +17,8 @@ UploadStumbleRunnable::Run()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
+  STUMBLER_DBG("In UploadStumbleRunnable •••••••••• -------- \n");
+
   nsresult rv = Upload();
   if (NS_FAILED(rv)) {
     WriteStumbleOnThread::UploadEnded(false);
@@ -29,9 +31,15 @@ UploadStumbleRunnable::Upload()
 {
 
   nsresult rv;
-  nsCOMPtr<nsIWritableVariant> variant =
-    do_CreateInstance("@mozilla.org/variant;1", &rv);
+
+  nsCOMPtr<nsIWritableVariant> variant = do_CreateInstance("@mozilla.org/variant;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
+
+// trying to set binary data, this fails immediately on Send()
+//  rv = variant->SetAsArray(nsIDataType::VTYPE_CHAR,
+//                       nullptr,
+//                       mUploadData.Length(),
+//                       reinterpret_cast<void*>(const_cast<char*>(mUploadData.get())));
   rv = variant->SetAsACString(mUploadData);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -55,31 +63,49 @@ UploadStumbleRunnable::Upload()
     do_CreateInstance("@mozilla.org/toolkit/URLFormatterService;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
   nsString url;
-  rv = formatter->FormatURLPref(NS_LITERAL_STRING("geo.stumbler.url"), url);
-  NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = xhr->Open(postString, NS_ConvertUTF16toUTF8(url), false, EmptyString(), EmptyString());
-  NS_ENSURE_SUCCESS(rv, rv);
+  // ignore for now
+  // rv = formatter->FormatURLPref(NS_LITERAL_STRING("geo.stumbler.url"), url);
+  // NS_ENSURE_SUCCESS(rv, rv);
 
-  xhr->SetRequestHeader(NS_LITERAL_CSTRING("Content-Type"), NS_LITERAL_CSTRING("application/json"));
-  xhr->SetRequestHeader(NS_LITERAL_CSTRING("Content-Encoding"), NS_LITERAL_CSTRING("gzip"));
   xhr->SetMozBackgroundRequest(true);
   // 60s timeout
   xhr->SetTimeout(60 * 1000);
 
-  nsCOMPtr<EventTarget> target(do_QueryInterface(xhr));
+  nsCOMPtr<nsIXMLHttpRequestUpload> target2;
+  rv = xhr->GetUpload(getter_AddRefs(target2));
+
   nsCOMPtr<nsIDOMEventListener> listener = new UploadEventListener(xhr, mUploadData.Length());
-  rv = target->AddEventListener(NS_LITERAL_STRING("timeout"), listener, false);
+
+  nsCOMPtr<EventTarget> target(do_QueryInterface(xhr));
+
+  const char* const sEventStrings[] = {
+    // nsIXMLHttpRequestEventTarget event types, supported by both XHR and Upload.
+    "abort",
+    "error",
+    "load",
+    "timeout"};
+
+  for (uint32_t index = 0; index < MOZ_ARRAY_LENGTH(sEventStrings); index++) {
+    nsAutoString eventType = NS_ConvertASCIItoUTF16(sEventStrings[index]);
+    rv = target->AddEventListener(eventType, listener, false);
+    NS_ENSURE_SUCCESS(rv, rv);
+    // the following doesn't get any events
+    rv = target2->AddEventListener(eventType, listener, false);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  rv = xhr->Open(postString, NS_LITERAL_CSTRING("https://location.services.mozilla.com/v1/geosubmit"), false, EmptyString(), EmptyString());
   NS_ENSURE_SUCCESS(rv, rv);
-  // loadend catches abort, load, and error
-  rv = target->AddEventListener(NS_LITERAL_STRING("load"), listener, false);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = target->AddEventListener(NS_LITERAL_STRING("loadend"), listener, false);
-  NS_ENSURE_SUCCESS(rv, rv);
+
+  xhr->SetRequestHeader(NS_LITERAL_CSTRING("Content-Type"), NS_LITERAL_CSTRING("application/json"));
+
+  // gzip not working
+  // xhr->SetRequestHeader(NS_LITERAL_CSTRING("Content-Encoding"), NS_LITERAL_CSTRING("gzip"));
 
   rv = xhr->Send(variant);
   NS_ENSURE_SUCCESS(rv, rv);
-
+  
   return NS_OK;
 }
 
@@ -90,9 +116,15 @@ UploadEventListener::UploadEventListener(nsCOMPtr<nsIXMLHttpRequest> aXHR, int64
 {
 }
 
+UploadEventListener::~UploadEventListener()
+{
+  STUMBLER_DBG("UploadEventListener destroyed \n");
+}
+
 NS_IMETHODIMP
 UploadEventListener::HandleEvent(nsIDOMEvent* aEvent)
 {
+  STUMBLER_DBG("HandleEvent ++++++++++++++++++++++++++++++++++++++ \n");
   nsString type;
   if (NS_FAILED(aEvent->GetType(type))) {
     STUMBLER_ERR("Failed to get event type");

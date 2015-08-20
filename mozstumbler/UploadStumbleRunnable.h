@@ -32,7 +32,7 @@ public:
   NS_DECL_NSIDOMEVENTLISTENER
 
 protected:
-  virtual ~UploadEventListener() {}
+  virtual ~UploadEventListener();
   nsCOMPtr<nsIXMLHttpRequest> mXHR;
   int64_t mFileSize;
 };
