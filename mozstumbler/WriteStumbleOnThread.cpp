@@ -262,6 +262,7 @@ WriteStumbleOnThread::Upload()
   sUploadFreqGuard.attempts++;
   if (sUploadFreqGuard.attempts > MAX_UPLOAD_ATTEMPTS) {
     STUMBLER_ERR("Too many upload attempts today");
+    sIsUploading = false;
     return;
   }
 
@@ -285,10 +286,19 @@ WriteStumbleOnThread::Upload()
   nsCOMPtr<nsIInputStream> inStream;
   rv = NS_NewLocalFileInputStream(getter_AddRefs(inStream), tmpFile, -1, -1,
                                   nsIFileInputStream::DEFER_OPEN);
-  NS_ENSURE_TRUE_VOID(inStream);
+  if (NS_FAILED(rv)) {
+    sIsUploading = false;
+    return;
+  }
 
-  nsAutoCString bufStr;
+  nsCString bufStr;
   rv = NS_ReadInputStreamToString(inStream, bufStr, fileSize);
+
+  if (NS_FAILED(rv)) {
+    sIsUploading = false;
+    return;
+  }
+
   NS_ENSURE_SUCCESS_VOID(rv);
 
   nsCOMPtr<nsIRunnable> uploader = new UploadStumbleRunnable(bufStr);

@@ -18,6 +18,7 @@ public:
 private:
   virtual ~UploadStumbleRunnable() {}
   const nsCString mUploadData;
+  nsresult Upload();
 };
 
 
