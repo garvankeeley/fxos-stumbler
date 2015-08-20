@@ -17,6 +17,17 @@ UploadStumbleRunnable::Run()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
+  nsresult rv = Upload();
+  if (NS_FAILED(rv)) {
+    WriteStumbleOnThread::UploadEnded(false);
+  }
+  return NS_OK;
+}
+
+nsresult
+UploadStumbleRunnable::Upload()
+{
+
   nsresult rv;
   nsCOMPtr<nsIWritableVariant> variant =
     do_CreateInstance("@mozilla.org/variant;1", &rv);
@@ -89,24 +100,35 @@ UploadEventListener::HandleEvent(nsIDOMEvent* aEvent)
     return NS_ERROR_FAILURE;
   }
 
+  uint32_t statusCode = 0;
   bool doDelete = false;
   if (type.EqualsLiteral("load")) {
     STUMBLER_DBG("Got load Event : size %lld", mFileSize);
     // I suspect that the file upload is finish when we got load event.
     // Will record the amount of upload and the time of upload
-    doDelete = true;
+    mXHR->GetStatus(&statusCode);
+    STUMBLER_DBG("statuscode %d \n", statusCode);
+
+    nsString responseText;
+    nsresult rv = mXHR->GetResponseText(responseText);
+    if (NS_SUCCEEDED(rv)) {
+      STUMBLER_DBG("response %s", NS_ConvertUTF16toUTF8(responseText).get());
+    }
   } else if (type.EqualsLiteral("error") && mXHR) {
     STUMBLER_ERR("Upload Error");
-    uint32_t statusCode;
     mXHR->GetStatus(&statusCode);
-    if (400 == statusCode) {
-      doDelete = true;
-    }
+
   } else {
-    STUMBLER_DBG("Receive %s Event", type.get());
+    STUMBLER_DBG("Receive %s Event", NS_ConvertUTF16toUTF8(type).get());
+  }
+
+  if (200 == statusCode || 400 == statusCode) {
+    doDelete = true;
   }
 
   WriteStumbleOnThread::UploadEnded(doDelete);
+
+  mXHR = nullptr;
 
   return NS_OK;
 }

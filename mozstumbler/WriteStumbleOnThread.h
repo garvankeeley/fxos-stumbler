@@ -4,11 +4,11 @@
 #include "mozilla/Atomics.h"
 
 /*
- This class is the entry point to stumbling, in that it 
- receives the location+cell+wifi string and writes it 
+ This class is the entry point to stumbling, in that it
+ receives the location+cell+wifi string and writes it
  to disk, or instead, it calls UploadStumbleRunnable
  to upload the data.
- 
+
  Writes will happen until the file is a max size, then stop.
  Uploads will happen only when the file is one day old.
  The purpose of these decisions is to have very simple rate-limiting
@@ -23,8 +23,8 @@
  A notable limitation is that the upload is triggered by a location event,
  this is used as an arbitrary and simple trigger. In future, there are
  better events that can be used, such as detecting network activity.
- 
- This thread is guarded so that only one instance is active (see the 
+
+ This thread is guarded so that only one instance is active (see the
  mozilla::Atomics used for this).
  */
 class WriteStumbleOnThread : public nsRunnable
@@ -57,7 +57,7 @@ private:
   UploadFileStatus GetUploadFileStatus();
   void WriteJSON(Partition aPart);
   void Upload();
-  
+
   nsCString mDesc;
 
   // Don't write while uploading is happening

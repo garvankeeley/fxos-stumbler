@@ -19,7 +19,7 @@ class StumblerInfo final : public nsICellInfoListCallback,
                            public nsIWifiScanResultsReady
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSICELLINFOLISTCALLBACK
   NS_DECL_NSIWIFISCANRESULTSREADY
 
