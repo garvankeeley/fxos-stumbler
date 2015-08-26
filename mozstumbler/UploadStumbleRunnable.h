@@ -25,14 +25,13 @@ private:
 class UploadEventListener : public nsIDOMEventListener
 {
 public:
-  UploadEventListener(nsCOMPtr<nsIXMLHttpRequest> aXHR, int64_t aFileSize);
+  UploadEventListener(nsIXMLHttpRequest* aXHR, int64_t aFileSize);
 
-  /*interfaces for addref and release and queryinterface*/
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMEVENTLISTENER
 
 protected:
-  virtual ~UploadEventListener();
+  virtual ~UploadEventListener() {}
   nsCOMPtr<nsIXMLHttpRequest> mXHR;
   int64_t mFileSize;
 };
