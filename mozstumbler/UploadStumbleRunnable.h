@@ -4,6 +4,7 @@
 #include "nsIDOMEventListener.h"
 
 class nsIXMLHttpRequest;
+class nsIInputStream;
 
 /*
  This runnable is managed by WriteStumbleOnThread only, see that class
@@ -12,12 +13,12 @@ class nsIXMLHttpRequest;
 class UploadStumbleRunnable final : public nsRunnable
 {
 public:
-  explicit UploadStumbleRunnable(const nsACString& aUploadData);
+  explicit UploadStumbleRunnable(nsIInputStream* aUploadInputStream);
 
   NS_IMETHOD Run() override;
 private:
   virtual ~UploadStumbleRunnable() {}
-  const nsCString mUploadData;
+  nsCOMPtr<nsIInputStream> mUploadInputStream;
   nsresult Upload();
 };
 
@@ -25,7 +26,7 @@ private:
 class UploadEventListener : public nsIDOMEventListener
 {
 public:
-  UploadEventListener(nsCOMPtr<nsIXMLHttpRequest> aXHR, int64_t aFileSize);
+  UploadEventListener(nsCOMPtr<nsIXMLHttpRequest> aXHR);
 
   /*interfaces for addref and release and queryinterface*/
   NS_DECL_ISUPPORTS
@@ -34,7 +35,6 @@ public:
 protected:
   virtual ~UploadEventListener();
   nsCOMPtr<nsIXMLHttpRequest> mXHR;
-  int64_t mFileSize;
 };
 
 #endif

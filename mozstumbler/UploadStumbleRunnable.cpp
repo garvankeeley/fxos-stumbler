@@ -6,9 +6,10 @@
 #include "nsIVariant.h"
 #include "nsIXMLHttpRequest.h"
 #include "nsNetUtil.h"
+#include "nsIInputStream.h"
 
-UploadStumbleRunnable::UploadStumbleRunnable(const nsACString& aUploadData)
-: mUploadData(aUploadData)
+UploadStumbleRunnable::UploadStumbleRunnable(nsIInputStream* aUploadData)
+: mUploadInputStream(aUploadData)
 {
 }
 
@@ -35,12 +36,10 @@ UploadStumbleRunnable::Upload()
   nsCOMPtr<nsIWritableVariant> variant = do_CreateInstance("@mozilla.org/variant;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-// trying to set binary data, this fails immediately on Send()
-//  rv = variant->SetAsArray(nsIDataType::VTYPE_CHAR,
-//                       nullptr,
-//                       mUploadData.Length(),
-//                       reinterpret_cast<void*>(const_cast<char*>(mUploadData.get())));
-  rv = variant->SetAsACString(mUploadData);
+ //trying to set binary data, this fails immediately on Send()
+  rv = variant->SetAsISupports(mUploadInputStream);
+
+//  rv = variant->SetAsACString(mUploadData);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIXMLHttpRequest> xhr = do_CreateInstance(NS_XMLHTTPREQUEST_CONTRACTID, &rv);
@@ -75,7 +74,7 @@ UploadStumbleRunnable::Upload()
   nsCOMPtr<nsIXMLHttpRequestUpload> target2;
   rv = xhr->GetUpload(getter_AddRefs(target2));
 
-  nsCOMPtr<nsIDOMEventListener> listener = new UploadEventListener(xhr, mUploadData.Length());
+  nsCOMPtr<nsIDOMEventListener> listener = new UploadEventListener(xhr);
 
   nsCOMPtr<EventTarget> target(do_QueryInterface(xhr));
 
@@ -101,7 +100,7 @@ UploadStumbleRunnable::Upload()
   xhr->SetRequestHeader(NS_LITERAL_CSTRING("Content-Type"), NS_LITERAL_CSTRING("application/json"));
 
   // gzip not working
-  // xhr->SetRequestHeader(NS_LITERAL_CSTRING("Content-Encoding"), NS_LITERAL_CSTRING("gzip"));
+   xhr->SetRequestHeader(NS_LITERAL_CSTRING("Content-Encoding"), NS_LITERAL_CSTRING("gzip"));
 
   rv = xhr->Send(variant);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -111,8 +110,8 @@ UploadStumbleRunnable::Upload()
 
 NS_IMPL_ISUPPORTS(UploadEventListener, nsIDOMEventListener)
 
-UploadEventListener::UploadEventListener(nsCOMPtr<nsIXMLHttpRequest> aXHR, int64_t aFileSize)
-: mXHR(aXHR), mFileSize(aFileSize)
+UploadEventListener::UploadEventListener(nsCOMPtr<nsIXMLHttpRequest> aXHR)
+: mXHR(aXHR)
 {
 }
 
@@ -135,7 +134,7 @@ UploadEventListener::HandleEvent(nsIDOMEvent* aEvent)
   uint32_t statusCode = 0;
   bool doDelete = false;
   if (type.EqualsLiteral("load")) {
-    STUMBLER_DBG("Got load Event : size %lld", mFileSize);
+    STUMBLER_DBG("Got load Event ");
     // I suspect that the file upload is finish when we got load event.
     // Will record the amount of upload and the time of upload
     mXHR->GetStatus(&statusCode);

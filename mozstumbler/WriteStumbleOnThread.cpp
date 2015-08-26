@@ -59,15 +59,6 @@ WriteStumbleOnThread::UploadEnded(bool deleteUploadFile)
   target->Dispatch(event, NS_DISPATCH_NORMAL);
 }
 
-#define DUMP(o, s) \
-  do { \
-    const char* s2 = (s); \
-    uint32_t dummy; \
-    nsresult rv = (o)->Write((s2), strlen(s2), &dummy); \
-    if (NS_WARN_IF(NS_FAILED(rv))) \
-    STUMBLER_ERR("write err"); \
-  } while (0)
-
 void
 WriteStumbleOnThread::WriteJSON(Partition aPart)
 {
@@ -82,20 +73,12 @@ WriteStumbleOnThread::WriteJSON(Partition aPart)
     return;
   }
 
-//  nsRefPtr<nsGZFileWriter> gzWriter = new nsGZFileWriter(nsGZFileWriter::Append);
-//  rv = gzWriter->Init(tmpFile);
-//  if (NS_WARN_IF(NS_FAILED(rv))) {
-//    STUMBLER_ERR("gzWriter init failed");
-//    return;
-//  }
-
-  nsCOMPtr<nsIFileOutputStream> gzWriter = do_CreateInstance("@mozilla.org/network/file-output-stream;1");
-  rv = gzWriter->Init(tmpFile, PR_WRONLY | PR_APPEND, 0666, 0);
+  nsRefPtr<nsGZFileWriter> gzWriter = new nsGZFileWriter(nsGZFileWriter::Append);
+  rv = gzWriter->Init(tmpFile);
   if (NS_WARN_IF(NS_FAILED(rv))) {
-    STUMBLER_ERR("Open a file for stumble failed");
+    STUMBLER_ERR("gzWriter init failed");
     return;
   }
-
 
   /*
    The json format is like below.
@@ -108,9 +91,8 @@ WriteStumbleOnThread::WriteJSON(Partition aPart)
 
   // Need to add "]}" after the last item
   if (aPart == Partition::End) {
-    //gzWriter->Write("]}");
-    DUMP(gzWriter, "]}");
-    rv = gzWriter->Close();
+    gzWriter->Write("]}");
+    rv = gzWriter->Finish();
     if (NS_WARN_IF(NS_FAILED(rv))) {
       STUMBLER_ERR("gzWriter finish failed");
     }
@@ -140,14 +122,14 @@ WriteStumbleOnThread::WriteJSON(Partition aPart)
 
   // Need to add "{items:[" before the first item
   if (aPart == Partition::Begining) {
-    DUMP(gzWriter, "{\"items\":[{");
+    gzWriter->Write("{\"items\":[{");
   } else if (aPart == Partition::Middle) {
-    DUMP(gzWriter, ",{");
+    gzWriter->Write(",{");
   }
-  DUMP(gzWriter, mDesc.get());
+  gzWriter->Write(mDesc.get());
   //  one item is end with '}' (e.g. {item})
-  DUMP(gzWriter, "}");
-  rv = gzWriter->Close();
+  gzWriter->Write("}");
+  rv = gzWriter->Finish();
   if (NS_WARN_IF(NS_FAILED(rv))) {
     STUMBLER_ERR("gzWriter finish failed");
   }
@@ -309,27 +291,25 @@ WriteStumbleOnThread::Upload()
 
   // prepare json into nsIInputStream
   nsCOMPtr<nsIInputStream> inStream;
-  rv = NS_NewLocalFileInputStream(getter_AddRefs(inStream), tmpFile, -1, -1,
-                                  nsIFileInputStream::DEFER_OPEN);
-  if (NS_FAILED(rv)) {
-    sIsUploading = false;
-    return;
-  }
-
-  nsCString bufStr;
-  rv = NS_ReadInputStreamToString(inStream, bufStr, fileSize);
+  rv = NS_NewLocalFileInputStream(getter_AddRefs(inStream), tmpFile);
 
   if (NS_FAILED(rv)) {
     sIsUploading = false;
     return;
   }
 
-  NS_ENSURE_SUCCESS_VOID(rv);
+//  nsCString bufStr;
+//  rv = NS_ReadInputStreamToString(inStream, bufStr, fileSize);
+//
+//  if (NS_FAILED(rv)) {
+//    sIsUploading = false;
+//    return;
+//  }
+//
+//  NS_ENSURE_SUCCESS_VOID(rv);
 
-  nsCOMPtr<nsIRunnable> uploader = new UploadStumbleRunnable(bufStr);
+  nsCOMPtr<nsIRunnable> uploader = new UploadStumbleRunnable(inStream);
   NS_DispatchToMainThread(uploader);
-
-  
 
   STUMBLER_DBG("3\n");
 }
