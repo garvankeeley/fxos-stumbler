@@ -60,8 +60,6 @@ private:
 
   nsCString mDesc;
 
-  // Don't write while uploading is happening
-  static mozilla::Atomic<bool> sIsUploading;
   // Only run one instance of this
   static mozilla::Atomic<bool> sIsAlreadyRunning;
 

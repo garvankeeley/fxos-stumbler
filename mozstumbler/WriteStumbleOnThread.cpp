@@ -11,7 +11,6 @@
 #define ONEDAY_IN_MSEC (1000)
 #define MAX_UPLOAD_ATTEMPTS 20
 
-mozilla::Atomic<bool> WriteStumbleOnThread::sIsUploading(false);
 mozilla::Atomic<bool> WriteStumbleOnThread::sIsAlreadyRunning(false);
 WriteStumbleOnThread::UploadFreqGuard WriteStumbleOnThread::sUploadFreqGuard = {0};
 
@@ -24,7 +23,7 @@ WriteStumbleOnThread::UploadEnded(bool deleteUploadFile)
 {
   STUMBLER_DBG("uploadended\n");
   if (!deleteUploadFile) {
-    sIsUploading = false;
+    sIsAlreadyRunning = false;
     return;
   }
 
@@ -45,7 +44,7 @@ WriteStumbleOnThread::UploadEnded(bool deleteUploadFile)
         tmpFile->Remove(true);
       }
       // critically, this sets this flag to false so writing can happen again
-      sIsUploading = false;
+      sIsAlreadyRunning = false;
       return NS_OK;
     }
 
@@ -193,6 +192,7 @@ WriteStumbleOnThread::Run()
   if (UploadFileStatus::NoFile != status) {
     if (UploadFileStatus::ExistsAndReadyToUpload == status) {
       Upload();
+      return NS_OK;
     }
   } else {
     Partition partition = GetWritePosition();
@@ -249,13 +249,6 @@ WriteStumbleOnThread::Upload()
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
-  STUMBLER_DBG("1\n");
-
-  bool b = sIsUploading.exchange(true);
-  if (b) {
-    return;
-  }
-
   STUMBLER_DBG("2\n");
 
   time_t seconds = time(0);
@@ -269,7 +262,7 @@ WriteStumbleOnThread::Upload()
   sUploadFreqGuard.attempts++;
   if (sUploadFreqGuard.attempts > MAX_UPLOAD_ATTEMPTS) {
     STUMBLER_ERR("Too many upload attempts today");
-    sIsUploading = false;
+    sIsAlreadyRunning = false;
     return;
   }
 
@@ -280,12 +273,12 @@ WriteStumbleOnThread::Upload()
   rv = tmpFile->GetFileSize(&fileSize);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     STUMBLER_ERR("GetFileSize failed");
-    sIsUploading = false;
+    sIsAlreadyRunning = false;
     return;
   }
   STUMBLER_LOG("size : %lld", fileSize);
   if (fileSize <= 0) {
-    sIsUploading = false;
+    sIsAlreadyRunning = false;
     return;
   }
 
@@ -294,19 +287,9 @@ WriteStumbleOnThread::Upload()
   rv = NS_NewLocalFileInputStream(getter_AddRefs(inStream), tmpFile);
 
   if (NS_FAILED(rv)) {
-    sIsUploading = false;
+    sIsAlreadyRunning = false;
     return;
   }
-
-//  nsCString bufStr;
-//  rv = NS_ReadInputStreamToString(inStream, bufStr, fileSize);
-//
-//  if (NS_FAILED(rv)) {
-//    sIsUploading = false;
-//    return;
-//  }
-//
-//  NS_ENSURE_SUCCESS_VOID(rv);
 
   nsCOMPtr<nsIRunnable> uploader = new UploadStumbleRunnable(inStream);
   NS_DispatchToMainThread(uploader);
