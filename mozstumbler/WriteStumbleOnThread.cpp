@@ -7,11 +7,10 @@
 #include "nsIInputStream.h"
 #include "nsPrintfCString.h"
 
-#define MAXFILESIZE_KB (15 * 1024)
-#define ONEDAY_IN_MSEC (24 * 60 * 60 * 1000)
+#define MAXFILESIZE_KB (1 * 1024)
+#define ONEDAY_IN_MSEC (1000)
 #define MAX_UPLOAD_ATTEMPTS 20
 
-mozilla::Atomic<bool> WriteStumbleOnThread::sIsUploading(false);
 mozilla::Atomic<bool> WriteStumbleOnThread::sIsAlreadyRunning(false);
 WriteStumbleOnThread::UploadFreqGuard WriteStumbleOnThread::sUploadFreqGuard = {0};
 
@@ -22,8 +21,9 @@ NS_NAMED_LITERAL_CSTRING(kOutputDirName, "mozstumbler");
 void
 WriteStumbleOnThread::UploadEnded(bool deleteUploadFile)
 {
+  STUMBLER_DBG("uploadended\n");
   if (!deleteUploadFile) {
-    sIsUploading = false;
+    sIsAlreadyRunning = false;
     return;
   }
 
@@ -44,7 +44,7 @@ WriteStumbleOnThread::UploadEnded(bool deleteUploadFile)
         tmpFile->Remove(true);
       }
       // critically, this sets this flag to false so writing can happen again
-      sIsUploading = false;
+      sIsAlreadyRunning = false;
       return NS_OK;
     }
 
@@ -185,13 +185,14 @@ WriteStumbleOnThread::Run()
     return NS_OK;
   }
 
-  STUMBLER_DBG("In WriteStumbleOnThread\n");
+  STUMBLER_DBG("In WriteStumbleOnThread 1\n");
 
   UploadFileStatus status = GetUploadFileStatus();
 
   if (UploadFileStatus::NoFile != status) {
     if (UploadFileStatus::ExistsAndReadyToUpload == status) {
       Upload();
+      return NS_OK;
     }
   } else {
     Partition partition = GetWritePosition();
@@ -212,7 +213,7 @@ WriteStumbleOnThread::Run()
  • if it is a day old -> ExistsAndReadyToUpload
  • if it is less than the current day old -> Exists
  • otherwise -> NoFile
- 
+
  The Exists case means that the upload and the stumbling is rate limited
  per-day to the size of the one file.
  */
@@ -236,9 +237,11 @@ WriteStumbleOnThread::GetUploadFileStatus()
   PRTime lastModifiedTime;
   tmpFile->GetLastModifiedTime(&lastModifiedTime);
   if ((PR_Now() / PR_USEC_PER_MSEC) - lastModifiedTime >= ONEDAY_IN_MSEC) {
+    STUMBLER_DBG("UploadFileStatus::ExistsAndReadyToUpload \n");
     return UploadFileStatus::ExistsAndReadyToUpload;
   }
   return UploadFileStatus::Exists;
+  STUMBLER_DBG("UploadFileStatus::Exists \n");
 }
 
 void
@@ -246,10 +249,7 @@ WriteStumbleOnThread::Upload()
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
-  bool b = sIsUploading.exchange(true);
-  if (b) {
-    return;
-  }
+  STUMBLER_DBG("2\n");
 
   time_t seconds = time(0);
   int day = seconds / (60 * 60 * 24);
@@ -262,6 +262,7 @@ WriteStumbleOnThread::Upload()
   sUploadFreqGuard.attempts++;
   if (sUploadFreqGuard.attempts > MAX_UPLOAD_ATTEMPTS) {
     STUMBLER_ERR("Too many upload attempts today");
+    sIsAlreadyRunning = false;
     return;
   }
 
@@ -272,25 +273,26 @@ WriteStumbleOnThread::Upload()
   rv = tmpFile->GetFileSize(&fileSize);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     STUMBLER_ERR("GetFileSize failed");
-    sIsUploading = false;
+    sIsAlreadyRunning = false;
     return;
   }
   STUMBLER_LOG("size : %lld", fileSize);
   if (fileSize <= 0) {
-    sIsUploading = false;
+    sIsAlreadyRunning = false;
     return;
   }
 
   // prepare json into nsIInputStream
   nsCOMPtr<nsIInputStream> inStream;
-  rv = NS_NewLocalFileInputStream(getter_AddRefs(inStream), tmpFile, -1, -1,
-                                  nsIFileInputStream::DEFER_OPEN);
-  NS_ENSURE_TRUE_VOID(inStream);
+  rv = NS_NewLocalFileInputStream(getter_AddRefs(inStream), tmpFile);
 
-  nsAutoCString bufStr;
-  rv = NS_ReadInputStreamToString(inStream, bufStr, fileSize);
-  NS_ENSURE_SUCCESS_VOID(rv);
+  if (NS_FAILED(rv)) {
+    sIsAlreadyRunning = false;
+    return;
+  }
 
-  nsCOMPtr<nsIRunnable> uploader = new UploadStumbleRunnable(bufStr);
+  nsCOMPtr<nsIRunnable> uploader = new UploadStumbleRunnable(inStream);
   NS_DispatchToMainThread(uploader);
+
+  STUMBLER_DBG("3\n");
 }
