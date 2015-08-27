@@ -8,7 +8,7 @@
 #include "nsPrintfCString.h"
 
 #define MAXFILESIZE_KB (15 * 1024)
-#define ONEDAY_IN_MSEC 1000//(24 * 60 * 60 * 1000)
+#define ONEDAY_IN_MSEC (24 * 60 * 60 * 1000)
 #define MAX_UPLOAD_ATTEMPTS 20
 
 mozilla::Atomic<bool> WriteStumbleOnThread::sIsUploading(false);
